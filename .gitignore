@@ -3,3 +3,4 @@ build-psp/
 *.elf
 *.sfo
 *.PBP
+dist/
