@@ -1,11 +1,6 @@
 #include <SDL2/SDL.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef PSP
-#include <pspkernel.h>
-PSP_MODULE_INFO("CurseOfWar", PSP_MODULE_USER, 1, 0);
-PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
-#endif
 #define W 15
 #define H 8
 #define T 32
