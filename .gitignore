@@ -1,0 +1,5 @@
+build-psp/
+*.o
+*.elf
+*.sfo
+*.PBP
