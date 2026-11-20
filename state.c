@@ -200,6 +200,14 @@ void adjust_cursor(struct state *s, struct ui *ui, int cursi, int cursj) {
       }
     }
   }
+
+  /* Follow the cursor horizontally so wide original maps remain playable
+     on the PSP's narrower display.  The renderer shows about 25 tile-widths. */
+  {
+    int max_skip = MAX(0, ui->xlength - 25);
+    int camera_skip = ui->cursor.i + ui->cursor.j / 2 - 12;
+    ui->xskip = IN_SEGMENT(camera_skip, 0, max_skip);
+  }
 }
 
 #define GROWTH_1 1.10
