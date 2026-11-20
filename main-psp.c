@@ -1,4 +1,4 @@
-/******************************************************************************
+/****************************************************************************** 
   Curse of War - native PSP frontend.
   Game logic and original artwork: Copyright (C) 2013 Alexey Nikolaev.
   Distributed under GPL-3.0-or-later; see LICENSE.
@@ -29,12 +29,16 @@ PSP_HEAP_SIZE_KB(-1024);
 #define PSP_H 272
 #define LOGICAL_W 800
 #define LOGICAL_H 360
+#define LEFT_TEXTURE_W 512
+#define RIGHT_TEXTURE_W (LOGICAL_W - LEFT_TEXTURE_W)
 #define FRAME_MS 10
 #define MOVE_REPEAT_MS 115
 
 static SDL_Window *window;
 static SDL_Renderer *renderer;
-static SDL_Texture *frame_texture;
+/* PSP's SDL renderer caps each texture dimension at 512 pixels. */
+static SDL_Texture *frame_texture_left;
+static SDL_Texture *frame_texture_right;
 static SDL_Surface *canvas;
 static SDL_Surface *tileset;
 static SDL_Surface *typeface;
@@ -51,8 +55,6 @@ static void set_app_directory(int argc, char **argv) {
   char path[512];
   size_t length;
 
-  /* PSP homebrew is not guaranteed to start with its EBOOT folder as cwd.
-     Prefer the executable path supplied by the loader. */
   if (argc > 0 && argv != NULL && argv[0] != NULL) {
     length = strlen(argv[0]);
     if (length < sizeof(path)) {
@@ -65,10 +67,7 @@ static void set_app_directory(int argc, char **argv) {
     }
   }
 
-  /* Standard PPSSPP / PSP memory-stick install location. */
   if (sceIoChdir("ms0:/PSP/GAME/CurseOfWar") >= 0) return;
-
-  /* Otherwise retain the loader-provided working directory. */
 }
 
 static int fatal_error(const char *stage, const char *detail) {
@@ -96,10 +95,18 @@ static int fatal_error(const char *stage, const char *detail) {
 }
 
 static void present(void) {
-  SDL_Rect viewport = {0, 28, PSP_W, 216};
-  SDL_UpdateTexture(frame_texture, NULL, canvas->pixels, canvas->pitch);
+  SDL_Rect left_src = {0, 0, LEFT_TEXTURE_W, LOGICAL_H};
+  SDL_Rect right_src = = {LEFT_TEXTURE_W, 0, RIGHT_TEXTURE_W, LOGICAL_H};
+  SDL_Rect left_dst = {0, 28, 307, 216};
+  SDL_Rect right_dst = {307, 28, 173, 216};
+  const Uint8 *pixels = (const Uint8 *)canvas->pixels;
+
+  SDL_UpdateTexture(frame_texture_left, NULL, pixels, canvas->pitch);
+  SDL_UpdateTexture(frame_texture_right, NULL,
+                    pixels + LEFT_TEXTURE_W * 4, canvas->pitch);
   SDL_RenderClear(renderer);
-  SDL_RenderCopy(renderer, frame_texture, NULL, &viewport);
+  SDL_RenderCopy(renderer, frame_texture_left, &left_src, &left_dst);
+  SDL_RenderCopy(renderer, frame_texture_right, &right_src, &right_dst);
   SDL_RenderPresent(renderer);
 }
 
@@ -238,8 +245,6 @@ static void run_game(void) {
 }
 
 int main(int argc, char **argv) {
-  int started = 0;
-
   set_app_directory(argc, argv);
 
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -259,11 +264,14 @@ int main(int argc, char **argv) {
     return fatal_error("creating renderer / canvas", SDL_GetError());
   }
 
-  frame_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888,
-                                    SDL_TEXTUREACCESS_STREAMING,
-                                    LOGICAL_W, LOGICAL_H);
-  if (!frame_texture) {
-    return fatal_error("creating frame texture", SDL_GetError());
+  frame_texture_left = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888,
+                                         SDL_TEXTUREACCESS_STREAMING,
+                                         LEFT_TEXTURE_W, LOGICAL_H);
+  frame_texture_right = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888,
+                                          SDL_TEXTUREACCESS_STREAMING,
+                                          RIGHT_TEXTURE_W, LOGICAL_H);
+  if (!frame_texture_left || !frame_texture_right) {
+    return fatal_error("creating split frame textures", SDL_GetError());
   }
 
   if (!load_assets()) {
@@ -275,23 +283,26 @@ int main(int argc, char **argv) {
   init_game();
   draw_title();
 
-  while (!started) {
-    SceCtrlData pad;
-    sceCtrlReadBufferPositive(&pad, 1);
-    if (pad.Buttons & PSP_CTRL_START) break;
-    if (pad.Buttons & PSP_CTRL_CROSS) {
-      started = 1;
-      previous_buttons = pad.Buttons;
+  {
+    int started = 0;
+    while (!started) {
+      SceCtrlData pad;
+      sceCtrlReadBufferPositive(&pad, 1);
+      if (pad.Buttons & PSP_CTRL_START) break;
+      if (pad.Buttons & PSP_CTRL_CROSS) {
+        started = 1;
+        previous_buttons = pad.Buttons;
+      }
+      SDL_Delay(20);
     }
-    SDL_Delay(20);
+    if (started) run_game();
   }
-
-  if (started) run_game();
 
   SDL_FreeSurface(tileset);
   SDL_FreeSurface(typeface);
   SDL_FreeSurface(uisurf);
-  SDL_DestroyTexture(frame_texture);
+  SDL_DestroyTexture(frame_texture_left);
+  SDL_DestroyTexture(frame_texture_right);
   SDL_FreeSurface(canvas);
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
