@@ -180,12 +180,13 @@ static void init_game(void) {
   srand((unsigned int)time(NULL));
   get_options(0, NULL, &options, &multi);
 
-  /* st_rect uses a skewed hex-grid coordinate system. The game core's
-     get_options() normally adds (h+1)/2 to the requested width; because
-     this frontend overrides dimensions after get_options(), preserve that
-     adjustment here or the rectangular stencil collapses to a diagonal
-     half-map. A 14x14 playable rectangle therefore needs grid width 21. */
-  options.w = 21;
+  /* st_rect uses axial hex coordinates. The core's get_options()
+     normally expands a requested 21-tile-wide rectangle by (h+1)/2.
+     This PSP frontend overrides the parsed options, so apply the same
+     expansion explicitly: 21 playable columns + 7 stagger columns = 28.
+     Using 21 here produced only about 14 visible columns and a narrow,
+     misleading pair of diagonal-looking map bands. */
+  options.w = 28;
   options.h = 14;
   options.loc_num = 4;
   options.conditions = 1;
