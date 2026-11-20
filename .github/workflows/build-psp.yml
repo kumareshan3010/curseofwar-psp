@@ -1,0 +1,38 @@
+name: Build Curse of War for PSP
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build EBOOT.PBP with PSPDEV
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src \
+            ghcr.io/pspdev/pspdev:latest \
+            bash -lc 'export PSPDEV=/usr/local/pspdev; export PATH=/usr/local/pspdev/bin:$PATH; command -v psp-config; psp-pacman -Sy --noconfirm sdl2; make clean; make V=1'
+
+      - name: Package PPSSPP-ready folder
+        run: |
+          mkdir -p dist/CurseOfWar
+          cp EBOOT.PBP dist/CurseOfWar/
+          cp -r images dist/CurseOfWar/
+
+      - name: Upload PSP build
+        uses: actions/upload-artifact@v4
+        with:
+          name: curseofwar-psp
+          path: dist/CurseOfWar/
+          if-no-files-found: error

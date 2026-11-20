@@ -1,6 +1,8 @@
-build-psp/
 *.o
 *.elf
-*.sfo
 *.PBP
+*.SFO
+*.prx
+*.map
+upstream/
 dist/

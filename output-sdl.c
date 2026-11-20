@@ -21,6 +21,9 @@
 
 #include "output-common.h"
 #include "output-sdl.h"
+#include <pspiofilemgr.h>
+#include <stdio.h>
+#include <pspiofilemgr.h>
 
 Uint32 getpixel(SDL_Surface *surface, int x, int y) {
   int bpp = surface->format->BytesPerPixel;
@@ -53,24 +56,87 @@ Uint32 getpixel(SDL_Surface *surface, int x, int y) {
 }
 
 int load_image(char *filename, SDL_Surface **image) {
-  /* PSP/SDL2 port: load a BMP, make cyan transparent, convert to 32-bit ABGR */
-  SDL_Surface *temp, *conv;
+  const char *roots[] = {
+    "",
+    "ms0:/PSP/GAME/CurseOfWar/",
+    "ef0:/PSP/GAME/CurseOfWar/"
+  };
+  SceUID fd = -1;
+  SceOff file_size;
+  Uint8 *buffer;
+  SceInt32 total = 0;
+  SDL_RWops *rw;
+  SDL_Surface *bmp;
+  char candidate[600];
+  int i;
+  SceUID relative_error = 0;
+  SceUID ms0_error = 0;
+  SceUID ef0_error = 0;
 
-  temp = SDL_LoadBMP(filename);
-  if (temp == NULL) {
-    printf("Unable to load bitmap: %s\n", SDL_GetError());
+  /* Try the current directory first, then both standard PSP install roots. */
+  for (i = 0; i < 3; ++i) {
+    if (roots[i][0] == '\0')
+      snprintf(candidate, sizeof(candidate), "%s", filename);
+    else
+      snprintf(candidate, sizeof(candidate), "%s%s", roots[i], filename);
+    fd = sceIoOpen(candidate, PSP_O_RDONLY, 0777);
+    if (fd >= 0) break;
+    if (i == 0) relative_error = fd;
+    else if (i == 1) ms0_error = fd;
+    else ef0_error = fd;
+  }
+
+  if (fd < 0) {
+    SDL_SetError("Open %s failed: relative=%08X ms0=%08X ef0=%08X",
+                 filename, (unsigned int)relative_error,
+                 (unsigned int)ms0_error, (unsigned int)ef0_error);
     return 1;
   }
 
-  Uint32 colorkey = SDL_MapRGB(temp->format, 0, 255, 255);
-  if (SDL_SetColorKey(temp, SDL_TRUE, colorkey) != 0) {
-    fprintf(stderr, "Warning: colorkey will not be used, reason: %s\n", SDL_GetError());
+  file_size = sceIoLseek(fd, 0, PSP_SEEK_END);
+  if (file_size <= 0 || file_size > 16 * 1024 * 1024) {
+    sceIoClose(fd);
+    SDL_SetError("Invalid BMP size for %s (%d bytes)", candidate,
+                 (int)file_size);
+    return 1;
+  }
+  sceIoLseek(fd, 0, PSP_SEEK_SET);
+
+  buffer = (Uint8 *)malloc((size_t)file_size);
+  if (buffer == NULL) {
+    sceIoClose(fd);
+    SDL_SetError("Out of memory reading %s", candidate);
+    return 1;
   }
 
-  conv = SDL_ConvertSurfaceFormat(temp, SDL_PIXELFORMAT_ABGR8888, 0);
-  SDL_FreeSurface(temp);
-  if (conv == NULL) return 1;
-  *image = conv;
+  while (total < file_size) {
+    SceInt32 count = sceIoRead(fd, buffer + total,
+                               (SceSize)(file_size - total));
+    if (count <= 0) {
+      free(buffer);
+      sceIoClose(fd);
+      SDL_SetError("PSP read failed for %s (%d)", candidate, (int)count);
+      return 1;
+    }
+    total += count;
+  }
+  sceIoClose(fd);
+
+  rw = SDL_RWFromMem(buffer, (int)file_size);
+  if (rw == NULL) {
+    free(buffer);
+    return 1;
+  }
+  bmp = SDL_LoadBMP_RW(rw, 1);
+  free(buffer);
+  if (bmp == NULL) return 1;
+
+  {
+    Uint32 colorkey = SDL_MapRGB(bmp->format, 0, 255, 255);
+    if (SDL_SetColorKey(bmp, SDL_TRUE, colorkey) != 0) SDL_ClearError();
+  }
+
+  *image = bmp;
   return 0;
 }
 
@@ -215,7 +281,7 @@ int is_a_cliff (int i, int j, struct grid *g, int buf[MAX_CLIFF]) {
 }
 
 #define POSY(j) ((j)+1)
-#define POSX(ui,i) ((i) - (ui->xskip))
+#define POSX(ui,i) ((i) - (ui->xskip) + MAX(0, (25 - (ui->xlength))/2))
 
 void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisurf, SDL_Surface *screen, 
     struct state *s, struct ui *ui,
@@ -365,16 +431,16 @@ void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisur
       TILE_WIDTH + (23 + 4*(p-1))*TYPE_WIDTH, screen_y + 1*TYPE_HEIGHT);
   }
 
-  output_string(typeface, screen, "[Space] flag", 
+  output_string(typeface, screen, "CROSS: FLAG", 
       TILE_WIDTH + 0*TYPE_WIDTH, screen_y + 3*TYPE_HEIGHT);
-  output_string(typeface, screen, "[R] or [V] build", 
+  output_string(typeface, screen, "CIRCLE: BUILD", 
       TILE_WIDTH + 27*TYPE_WIDTH, screen_y + 3*TYPE_HEIGHT);
-  output_string(typeface, screen, "[X],[C] mass remove", 
+  output_string(typeface, screen, "SQUARE: ALL  SELECT: HALF", 
       TILE_WIDTH + 0*TYPE_WIDTH, screen_y + 4*TYPE_HEIGHT);
   
-  output_string(typeface, screen, "[S] slower [F] faster", 
+  output_string(typeface, screen, "L: SLOWER  R: FASTER", 
       TILE_WIDTH + 54*TYPE_WIDTH, screen_y + 3*TYPE_HEIGHT);
-  output_string(typeface, screen, "[P] pause", 
+  output_string(typeface, screen, "TRIANGLE: PAUSE", 
       TILE_WIDTH + 54*TYPE_WIDTH, screen_y + 4*TYPE_HEIGHT);
 
   /* line */
