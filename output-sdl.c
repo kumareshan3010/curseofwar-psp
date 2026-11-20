@@ -21,6 +21,7 @@
 
 #include "output-common.h"
 #include "output-sdl.h"
+#include <pspiofilemgr.h>
 
 Uint32 getpixel(SDL_Surface *surface, int x, int y) {
   int bpp = surface->format->BytesPerPixel;
@@ -54,12 +55,59 @@ Uint32 getpixel(SDL_Surface *surface, int x, int y) {
 
 int load_image(char *filename, SDL_Surface **image) {
   /*
-   * Keep the BMP's native SDL pixel format on PSP. SDL_ConvertSurfaceFormat()
-   * is not reliably implemented by the PSP SDL2 renderer build and can fail
-   * with "Parameter 'src' is invalid". SDL_BlitSurface() performs the needed
-   * conversion when drawing into the ABGR8888 game canvas.
+   * Read through the PSP I/O manager instead of SDL_RWFromFile. On some
+   * PSP SDL2 builds SDL_LoadBMP(filename) fails before decoding because its
+   * stdio-backed RWops cannot resolve the PSP device path.
    */
-  SDL_Surface *bmp = SDL_LoadBMP(filename);
+  SceUID fd = sceIoOpen(filename, PSP_O_RDONLY, 0777);
+  SceOff file_size;
+  Uint8 *buffer;
+  SceInt32 total = 0;
+  SDL_RWops *rw;
+  SDL_Surface *bmp;
+
+  if (fd < 0) {
+    SDL_SetError("PSP cannot open %s (sceIoOpen=%08X)", filename,
+                 (unsigned int)fd);
+    return 1;
+  }
+
+  file_size = sceIoLseek(fd, 0, PSP_SEEK_END);
+  if (file_size <= 0 || file_size > 16 * 1024 * 1024) {
+    sceIoClose(fd);
+    SDL_SetError("Invalid BMP size for %s (%d bytes)", filename,
+                 (int)file_size);
+    return 1;
+  }
+  sceIoLseek(fd, 0, PSP_SEEK_SET);
+
+  buffer = (Uint8 *)malloc((size_t)file_size);
+  if (buffer == NULL) {
+    sceIoClose(fd);
+    SDL_SetError("Out of memory reading %s", filename);
+    return 1;
+  }
+
+  while (total < file_size) {
+    SceInt32 count = sceIoRead(fd, buffer + total,
+                               (SceSize)(file_size - total));
+    if (count <= 0) {
+      free(buffer);
+      sceIoClose(fd);
+      SDL_SetError("PSP read failed for %s (%d)", filename, (int)count);
+      return 1;
+    }
+    total += count;
+  }
+  sceIoClose(fd);
+
+  rw = SDL_RWFromMem(buffer, (int)file_size);
+  if (rw == NULL) {
+    free(buffer);
+    return 1;
+  }
+  bmp = SDL_LoadBMP_RW(rw, 1);
+  free(buffer);
   if (bmp == NULL) {
     return 1;
   }
@@ -68,7 +116,6 @@ int load_image(char *filename, SDL_Surface **image) {
   {
     Uint32 colorkey = SDL_MapRGB(bmp->format, 0, 255, 255);
     if (SDL_SetColorKey(bmp, SDL_TRUE, colorkey) != 0) {
-      /* Continue without a colour key; keep the load failure diagnosable. */
       SDL_ClearError();
     }
   }
