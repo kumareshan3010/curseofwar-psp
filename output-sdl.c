@@ -22,6 +22,8 @@
 #include "output-common.h"
 #include "output-sdl.h"
 #include <pspiofilemgr.h>
+#include <stdio.h>
+#include <pspiofilemgr.h>
 
 Uint32 getpixel(SDL_Surface *surface, int x, int y) {
   int bpp = surface->format->BytesPerPixel;
@@ -54,28 +56,42 @@ Uint32 getpixel(SDL_Surface *surface, int x, int y) {
 }
 
 int load_image(char *filename, SDL_Surface **image) {
-  /*
-   * Read through the PSP I/O manager instead of SDL_RWFromFile. On some
-   * PSP SDL2 builds SDL_LoadBMP(filename) fails before decoding because its
-   * stdio-backed RWops cannot resolve the PSP device path.
-   */
-  SceUID fd = sceIoOpen(filename, PSP_O_RDONLY, 0777);
+  const char *roots[] = {
+    "",
+    "ms0:/PSP/GAME/CurseOfWar/",
+    "ef0:/PSP/GAME/CurseOfWar/"
+  };
+  SceUID fd = -1;
   SceOff file_size;
   Uint8 *buffer;
   SceInt32 total = 0;
   SDL_RWops *rw;
   SDL_Surface *bmp;
+  char candidate[600];
+  int i;
+  SceUID last_error = 0;
+
+  /* Try the current directory first, then both standard PSP install roots. */
+  for (i = 0; i < 3; ++i) {
+    if (roots[i][0] == '\0')
+      snprintf(candidate, sizeof(candidate), "%s", filename);
+    else
+      snprintf(candidate, sizeof(candidate), "%s%s", roots[i], filename);
+    fd = sceIoOpen(candidate, PSP_O_RDONLY, 0777);
+    if (fd >= 0) break;
+    last_error = fd;
+  }
 
   if (fd < 0) {
-    SDL_SetError("PSP cannot open %s (sceIoOpen=%08X)", filename,
-                 (unsigned int)fd);
+    SDL_SetError("Cannot find %s; tried current dir, ms0:/PSP/GAME/CurseOfWar and ef0:/PSP/GAME/CurseOfWar (sceIoOpen=%08X)",
+                 filename, (unsigned int)last_error);
     return 1;
   }
 
   file_size = sceIoLseek(fd, 0, PSP_SEEK_END);
   if (file_size <= 0 || file_size > 16 * 1024 * 1024) {
     sceIoClose(fd);
-    SDL_SetError("Invalid BMP size for %s (%d bytes)", filename,
+    SDL_SetError("Invalid BMP size for %s (%d bytes)", candidate,
                  (int)file_size);
     return 1;
   }
@@ -84,7 +100,7 @@ int load_image(char *filename, SDL_Surface **image) {
   buffer = (Uint8 *)malloc((size_t)file_size);
   if (buffer == NULL) {
     sceIoClose(fd);
-    SDL_SetError("Out of memory reading %s", filename);
+    SDL_SetError("Out of memory reading %s", candidate);
     return 1;
   }
 
@@ -94,7 +110,7 @@ int load_image(char *filename, SDL_Surface **image) {
     if (count <= 0) {
       free(buffer);
       sceIoClose(fd);
-      SDL_SetError("PSP read failed for %s (%d)", filename, (int)count);
+      SDL_SetError("PSP read failed for %s (%d)", candidate, (int)count);
       return 1;
     }
     total += count;
@@ -108,16 +124,11 @@ int load_image(char *filename, SDL_Surface **image) {
   }
   bmp = SDL_LoadBMP_RW(rw, 1);
   free(buffer);
-  if (bmp == NULL) {
-    return 1;
-  }
+  if (bmp == NULL) return 1;
 
-  /* Original artwork uses cyan as its transparent colour. */
   {
     Uint32 colorkey = SDL_MapRGB(bmp->format, 0, 255, 255);
-    if (SDL_SetColorKey(bmp, SDL_TRUE, colorkey) != 0) {
-      SDL_ClearError();
-    }
+    if (SDL_SetColorKey(bmp, SDL_TRUE, colorkey) != 0) SDL_ClearError();
   }
 
   *image = bmp;
