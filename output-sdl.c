@@ -435,7 +435,7 @@ void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisur
       TILE_WIDTH + 0*TYPE_WIDTH, screen_y + 3*TYPE_HEIGHT);
   output_string(typeface, screen, "CIRCLE: BUILD", 
       TILE_WIDTH + 27*TYPE_WIDTH, screen_y + 3*TYPE_HEIGHT);
-  output_string(typeface, screen, "SQUARE: REMOVE ALL", 
+  output_string(typeface, screen, "SQUARE: ALL  SELECT: HALF", 
       TILE_WIDTH + 0*TYPE_WIDTH, screen_y + 4*TYPE_HEIGHT);
   
   output_string(typeface, screen, "L: SLOWER  R: FASTER", 
