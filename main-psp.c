@@ -184,11 +184,14 @@ static void init_game(void) {
      The known-good reference EBOOT uses the original default map width
      of 21. Do not override width/height in the PSP frontend: doing so
      bypasses the core's hex-grid rectangular-stencil calculations. */
+  /* Preserve the original game's get_options() defaults:
+     normal difficulty, random starting conditions, rectangular map,
+     four locations, and normal speed. */
   options.loc_num = 4;
-  options.conditions = 1;
-  options.inequality = 4;
+  options.conditions = 0;
+  options.inequality = RANDOM_INEQUALITY;
   options.shape = st_rect;
-  options.dif = dif_easy;
+  options.dif = dif_normal;
   options.speed = sp_normal;
   options.keep_random_flag = 0;
   options.timeline_flag = 0;
