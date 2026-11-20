@@ -281,7 +281,7 @@ int is_a_cliff (int i, int j, struct grid *g, int buf[MAX_CLIFF]) {
 }
 
 #define POSY(j) ((j)+1)
-#define POSX(ui,i) ((i) - (ui->xskip) + MAX(0, (25 - (ui->xlength))/2))
+#define POSX(ui,i,j) ((i) + ((j) / 2) - (ui->xskip) + MAX(0, (25 - (ui->xlength))/2))
 
 void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisurf, SDL_Surface *screen, 
     struct state *s, struct ui *ui,
@@ -304,7 +304,7 @@ void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisur
       if (is_a_cliff(i, j, &s->grid, cliff_buf)) {
         for(k=0; k<MAX_CLIFF; ++k) {
           if (cliff_buf[k]) {
-            blit_subpic (tileset, screen, 7+k, 0, POSX(ui, i), POSY(j));
+            blit_subpic (tileset, screen, 7+k, 0, POSX(ui, i, j), POSY(j));
           }
         }
         continue;
@@ -343,7 +343,7 @@ void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisur
                 if (pop > 0) {
                   srci = 0 + pop_to_symbol(pop);
                   srcj = 8 + 3*(owner);
-                  blit_subpic_noise (tileset, screen, srci, srcj, POSX(ui, i), POSY(j), pop_variant[i][j]);
+                  blit_subpic_noise (tileset, screen, srci, srcj, POSX(ui, i, j), POSY(j), pop_variant[i][j]);
                   if (rand()%20 == 0) {
                     int d = 1;
                     if (owner != s->controlled) d = 11;
@@ -356,14 +356,14 @@ void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisur
               done = 1;
           }
           if (!done) {
-            blit_subpic_2h (tileset, screen, srci, srcj, POSX(ui, i), POSY(j));
+            blit_subpic_2h (tileset, screen, srci, srcj, POSX(ui, i, j), POSY(j));
             if (s->grid.tiles[i][j].cl == mine) {
               if (s->grid.tiles[i][j].pl > 0)
                 /* add a currency sign if its mining */
-                blit_subpic_2h (tileset, screen, 5, 5, POSX(ui, i), POSY(j));
+                blit_subpic_2h (tileset, screen, 5, 5, POSX(ui, i, j), POSY(j));
               else
                 /* no currency sign */
-                blit_subpic (tileset, screen, 5, 5, POSX(ui, i), POSY(j));
+                blit_subpic (tileset, screen, 5, 5, POSX(ui, i, j), POSY(j));
             }
           }
       }
@@ -372,12 +372,12 @@ void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisur
       for (p=0; p<MAX_PLAYER; ++p) {
         if (p != s->controlled) {
           if (s->fg[p].flag[i][j] != 0 && ((ktime/5 + p) / 5)%10 < 10) {
-            blit_subpic_2h (tileset, screen, 4, 7+3*p, POSX(ui, i), POSY(j));
+            blit_subpic_2h (tileset, screen, 4, 7+3*p, POSX(ui, i, j), POSY(j));
           }
         }
         else 
           if (s->fg[p].flag[i][j] != 0) {
-            blit_subpic_2h (tileset, screen, 3, 7+3*p, POSX(ui, i), POSY(j));
+            blit_subpic_2h (tileset, screen, 3, 7+3*p, POSX(ui, i, j), POSY(j));
           }
       }
 
@@ -386,9 +386,9 @@ void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisur
 
 
   /* draw cursor */
-  blit_subpic_2h (tileset, screen, 6, 5, POSX(ui, ui->cursor.i-1), POSY(ui->cursor.j));
-  blit_subpic_2h (tileset, screen, 7, 5, POSX(ui, ui->cursor.i), POSY(ui->cursor.j));
-  blit_subpic_2h (tileset, screen, 8, 5, POSX(ui, ui->cursor.i+1), POSY(ui->cursor.j));
+  blit_subpic_2h (tileset, screen, 6, 5, POSX(ui, ui->cursor.i-1, ui->cursor.j), POSY(ui->cursor.j));
+  blit_subpic_2h (tileset, screen, 7, 5, POSX(ui, ui->cursor.i, ui->cursor.j), POSY(ui->cursor.j));
+  blit_subpic_2h (tileset, screen, 8, 5, POSX(ui, ui->cursor.i+1, ui->cursor.j), POSY(ui->cursor.j));
 
   /* Text */
   int screen_y = (POSY(s->grid.height) + 1) * TILE_HEIGHT;
