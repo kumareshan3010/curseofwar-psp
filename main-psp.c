@@ -7,10 +7,14 @@
 #define SDL_MAIN_HANDLED
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include "SDL.h"
 #include <pspkernel.h>
 #include <pspctrl.h>
+#include <pspdebug.h>
+#include <pspiofilemgr.h>
 
 PSP_MODULE_INFO("CurseOfWar", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
@@ -42,6 +46,59 @@ static int tile_variant[MAX_WIDTH][MAX_HEIGHT];
 static int pop_variant[MAX_WIDTH][MAX_HEIGHT];
 static unsigned int previous_buttons;
 static Uint32 last_move;
+static char asset_error[256];
+
+static void set_app_directory(int argc, char **argv) {
+  char path[512];
+  char cwd[512];
+  size_t length;
+
+  /* PSP homebrew is not guaranteed to start with its EBOOT folder as cwd.
+     Prefer the executable path supplied by the loader. */
+  if (argc > 0 && argv != NULL && argv[0] != NULL) {
+    length = strlen(argv[0]);
+    if (length < sizeof(path)) {
+      strcpy(path, argv[0]);
+      char *slash = strrchr(path, '/');
+      if (slash != NULL) {
+        *slash = '\0';
+        if (sceIoChdir(path) >= 0) return;
+      }
+    }
+  }
+
+  /* Standard PPSSPP / PSP memory-stick install location. */
+  if (sceIoChdir("ms0:/PSP/GAME/CurseOfWar") >= 0) return;
+
+  /* Keep the current directory if the loader already set it correctly. */
+  if (getcwd(cwd, sizeof(cwd)) != NULL) {
+    sceKernelPrintf("CurseOfWar cwd: %s\n", cwd);
+  }
+}
+
+static int fatal_error(const char *stage, const char *detail) {
+  SceCtrlData pad;
+
+  SDL_Quit();
+  pspDebugScreenInit();
+  pspDebugScreenSetTextColor(0xFFFFFFFF);
+  pspDebugScreenPrintf("CURSE OF WAR - STARTUP ERROR\n\n");
+  pspDebugScreenPrintf("Stage: %s\n", stage ? stage : "unknown");
+  pspDebugScreenPrintf("Details: %s\n\n", detail ? detail : "no details");
+  pspDebugScreenPrintf("Check that EBOOT.PBP and the images folder\n");
+  pspDebugScreenPrintf("are together inside PSP/GAME/CurseOfWar.\n\n");
+  pspDebugScreenPrintf("Press START to close this screen.\n");
+
+  sceCtrlSetSamplingCycle(0);
+  sceCtrlSetSamplingMode(PSP_CTRL_MODE_DIGITAL);
+  do {
+    sceCtrlReadBufferPositive(&pad, 1);
+    sceKernelDelayThread(20000);
+  } while (!(pad.Buttons & PSP_CTRL_START));
+
+  sceKernelExitGame();
+  return 1;
+}
 
 static void present(void) {
   SDL_Rect viewport = {0, 28, PSP_W, 216};
@@ -85,9 +142,21 @@ static char read_command(void) {
 }
 
 static int load_assets(void) {
-  if (load_image("images/tileset.bmp", &tileset) != 0) return 0;
-  if (load_image("images/type.bmp", &typeface) != 0) return 0;
-  if (load_image("images/ui.bmp", &uisurf) != 0) return 0;
+  const char *files[] = {
+    "images/tileset.bmp",
+    "images/type.bmp",
+    "images/ui.bmp"
+  };
+  SDL_Surface **surfaces[] = { &tileset, &typeface, &uisurf };
+  int i;
+
+  for (i = 0; i < 3; ++i) {
+    if (load_image((char *)files[i], surfaces[i]) != 0) {
+      snprintf(asset_error, sizeof(asset_error), "%s: %s",
+               files[i], SDL_GetError());
+      return 0;
+    }
+  }
   return 1;
 }
 
@@ -108,7 +177,6 @@ static void init_game(void) {
   srand((unsigned int)time(NULL));
   get_options(0, NULL, &options, &multi);
 
-  /* A compact map keeps the original game HUD visible on the PSP screen. */
   options.w = 14;
   options.h = 14;
   options.loc_num = 4;
@@ -174,50 +242,37 @@ static void run_game(void) {
   }
 }
 
-int main(void) {
+int main(int argc, char **argv) {
   int started = 0;
 
+  set_app_directory(argc, argv);
+
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-    fprintf(stderr, "SDL init failed: %s\n", SDL_GetError());
-    sceKernelExitGame();
-    return 1;
+    return fatal_error("SDL video initialization", SDL_GetError());
   }
 
   window = SDL_CreateWindow("Curse of War", SDL_WINDOWPOS_UNDEFINED,
                             SDL_WINDOWPOS_UNDEFINED, PSP_W, PSP_H, 0);
   if (!window) {
-    fprintf(stderr, "SDL window failed: %s\n", SDL_GetError());
-    SDL_Quit();
-    sceKernelExitGame();
-    return 1;
+    return fatal_error("creating PSP window", SDL_GetError());
   }
 
   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
   canvas = SDL_CreateRGBSurfaceWithFormat(0, LOGICAL_W, LOGICAL_H, 32,
                                           SDL_PIXELFORMAT_ABGR8888);
   if (!renderer || !canvas) {
-    fprintf(stderr, "Unable to create renderer or canvas: %s\n", SDL_GetError());
-    if (canvas) SDL_FreeSurface(canvas);
-    if (renderer) SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    sceKernelExitGame();
-    return 1;
+    return fatal_error("creating renderer / canvas", SDL_GetError());
   }
 
   frame_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888,
                                     SDL_TEXTUREACCESS_STREAMING,
                                     LOGICAL_W, LOGICAL_H);
-  if (!frame_texture || !load_assets()) {
-    fprintf(stderr, "Unable to create frame texture or load assets: %s\n",
-            SDL_GetError());
-    if (frame_texture) SDL_DestroyTexture(frame_texture);
-    SDL_FreeSurface(canvas);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    sceKernelExitGame();
-    return 1;
+  if (!frame_texture) {
+    return fatal_error("creating frame texture", SDL_GetError());
+  }
+
+  if (!load_assets()) {
+    return fatal_error("loading game artwork", asset_error);
   }
 
   sceCtrlSetSamplingCycle(0);
