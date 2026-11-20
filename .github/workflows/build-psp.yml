@@ -1,0 +1,54 @@
+name: Build Curse of War for PSP
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: pspdev/pspdev:latest
+    steps:
+      - name: Check out PSP port
+        uses: actions/checkout@v4
+
+      - name: Get original game logic
+        run: |
+          git clone https://github.com/a-nikolaev/curseofwar.git upstream
+          git -C upstream checkout 6292ca88b908d29c159b5e26a996d9d83c73144b
+
+      - name: Assemble clean PSP source tree
+        run: |
+          cp common.h grid.c grid.h king.c king.h main-common.c main-common.h \
+             output-common.c output-common.h output-sdl.c output-sdl.h state.c state.h \
+             main-psp.c Makefile upstream/
+          cp -r upstream/images .
+          cd upstream
+          sed -i 's/SDL_SRCCOLORKEY | SDL_RLEACCEL/SDL_TRUE/' output-sdl.c
+          sed -i 's/SDL_DisplayFormat(temp)/temp/' output-sdl.c
+          sed -i '/SDL_FreeSurface(temp);/d' output-sdl.c
+
+      - name: Compile EBOOT.PBP
+        working-directory: upstream
+        run: |
+          make clean || true
+          make V=1
+
+      - name: Package PPSSPP-ready folder
+        run: |
+          mkdir -p dist/CurseOfWar
+          cp upstream/EBOOT.PBP dist/CurseOfWar/
+          cp -r upstream/images dist/CurseOfWar/
+
+      - name: Upload PSP build
+        uses: actions/upload-artifact@v4
+        with:
+          name: curseofwar-psp
+          path: dist/CurseOfWar/
+          if-no-files-found: error
