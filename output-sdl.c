@@ -281,7 +281,7 @@ int is_a_cliff (int i, int j, struct grid *g, int buf[MAX_CLIFF]) {
 }
 
 #define POSY(j) ((j)+1)
-#define POSX(ui,i) ((i) - (ui->xskip))
+#define POSX(ui,i) ((i) - (ui->xskip) + MAX(0, (25 - (ui->xlength))/2))
 
 void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisurf, SDL_Surface *screen, 
     struct state *s, struct ui *ui,
@@ -431,16 +431,16 @@ void output_sdl (SDL_Surface *tileset, SDL_Surface *typeface, SDL_Surface *uisur
       TILE_WIDTH + (23 + 4*(p-1))*TYPE_WIDTH, screen_y + 1*TYPE_HEIGHT);
   }
 
-  output_string(typeface, screen, "[Space] flag", 
+  output_string(typeface, screen, "CROSS: FLAG", 
       TILE_WIDTH + 0*TYPE_WIDTH, screen_y + 3*TYPE_HEIGHT);
-  output_string(typeface, screen, "[R] or [V] build", 
+  output_string(typeface, screen, "CIRCLE: BUILD", 
       TILE_WIDTH + 27*TYPE_WIDTH, screen_y + 3*TYPE_HEIGHT);
-  output_string(typeface, screen, "[X],[C] mass remove", 
+  output_string(typeface, screen, "SQUARE: REMOVE ALL", 
       TILE_WIDTH + 0*TYPE_WIDTH, screen_y + 4*TYPE_HEIGHT);
   
-  output_string(typeface, screen, "[S] slower [F] faster", 
+  output_string(typeface, screen, "L: SLOWER  R: FASTER", 
       TILE_WIDTH + 54*TYPE_WIDTH, screen_y + 3*TYPE_HEIGHT);
-  output_string(typeface, screen, "[P] pause", 
+  output_string(typeface, screen, "TRIANGLE: PAUSE", 
       TILE_WIDTH + 54*TYPE_WIDTH, screen_y + 4*TYPE_HEIGHT);
 
   /* line */
