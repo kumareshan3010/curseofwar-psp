@@ -68,6 +68,7 @@ static void set_app_directory(int argc, char **argv) {
   }
 
   if (sceIoChdir("ms0:/PSP/GAME/CurseOfWar") >= 0) return;
+  if (sceIoChdir("ef0:/PSP/GAME/CurseOfWar") >= 0) return;
 }
 
 static int fatal_error(const char *stage, const char *detail) {
