@@ -22,7 +22,7 @@ jobs:
             -v "$GITHUB_WORKSPACE:/src" \
             -w /src \
             ghcr.io/pspdev/pspdev:latest \
-            sh -lc 'make clean || true; make V=1'
+            bash -lc 'export PSPDEV=/usr/local/pspdev; export PATH=/usr/local/pspdev/bin:$PATH; command -v psp-config; psp-pacman -Sy --noconfirm sdl2; make clean; make V=1'
 
       - name: Package PPSSPP-ready folder
         run: |
