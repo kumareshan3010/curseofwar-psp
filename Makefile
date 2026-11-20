@@ -8,7 +8,7 @@ INCDIR = $(PSP_PREFIX)/include/SDL2
 CFLAGS = -O2 -G0 -Wall -std=gnu99 -DNOGETOPT=1 -DVERSION=\"1.0.0-psp\"
 CFLAGS += -I$(PSP_PREFIX)/include/SDL2
 CXXFLAGS = $(CFLAGS)
-LIBS = -lSDL2main -lSDL2 -lm -lpspctrl -lpspdisplay -lpspkernel -lpspdebug -lpspgu -lpspvram
+LIBS = -lSDL2 -lm -lpspctrl -lpspdisplay -lpspkernel -lpspdebug -lpspgu -lpspvram
 
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = Curse of War
