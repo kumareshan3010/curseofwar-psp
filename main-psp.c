@@ -180,7 +180,12 @@ static void init_game(void) {
   srand((unsigned int)time(NULL));
   get_options(0, NULL, &options, &multi);
 
-  options.w = 14;
+  /* st_rect uses a skewed hex-grid coordinate system. The game core's
+     get_options() normally adds (h+1)/2 to the requested width; because
+     this frontend overrides dimensions after get_options(), preserve that
+     adjustment here or the rectangular stencil collapses to a diagonal
+     half-map. A 14x14 playable rectangle therefore needs grid width 21. */
+  options.w = 21;
   options.h = 14;
   options.loc_num = 4;
   options.conditions = 1;
