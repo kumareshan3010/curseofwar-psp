@@ -12,39 +12,23 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: pspdev/pspdev:latest
     steps:
-      - name: Check out PSP port
+      - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Get original game logic
+      - name: Build EBOOT.PBP with PSPDEV
         run: |
-          git clone https://github.com/a-nikolaev/curseofwar.git upstream
-          git -C upstream checkout 6292ca88b908d29c159b5e26a996d9d83c73144b
-
-      - name: Assemble clean PSP source tree
-        run: |
-          cp common.h grid.c grid.h king.c king.h main-common.c main-common.h \
-             output-common.c output-common.h output-sdl.c output-sdl.h state.c state.h \
-             main-psp.c Makefile upstream/
-          cp -r upstream/images .
-          cd upstream
-          sed -i 's/SDL_SRCCOLORKEY | SDL_RLEACCEL/SDL_TRUE/' output-sdl.c
-          sed -i 's/SDL_DisplayFormat(temp)/temp/' output-sdl.c
-          sed -i '/SDL_FreeSurface(temp);/d' output-sdl.c
-
-      - name: Compile EBOOT.PBP
-        working-directory: upstream
-        run: |
-          make clean || true
-          make V=1
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src \
+            ghcr.io/pspdev/pspdev:latest \
+            sh -lc 'make clean || true; make V=1'
 
       - name: Package PPSSPP-ready folder
         run: |
           mkdir -p dist/CurseOfWar
-          cp upstream/EBOOT.PBP dist/CurseOfWar/
-          cp -r upstream/images dist/CurseOfWar/
+          cp EBOOT.PBP dist/CurseOfWar/
+          cp -r images dist/CurseOfWar/
 
       - name: Upload PSP build
         uses: actions/upload-artifact@v4
