@@ -180,14 +180,10 @@ static void init_game(void) {
   srand((unsigned int)time(NULL));
   get_options(0, NULL, &options, &multi);
 
-  /* st_rect uses axial hex coordinates. The core's get_options()
-     normally expands a requested 21-tile-wide rectangle by (h+1)/2.
-     This PSP frontend overrides the parsed options, so apply the same
-     expansion explicitly: 21 playable columns + 7 stagger columns = 28.
-     Using 21 here produced only about 14 visible columns and a narrow,
-     misleading pair of diagonal-looking map bands. */
-  options.w = 28;
-  options.h = 14;
+  /* Keep the original game's map dimensions from get_options().
+     The known-good reference EBOOT uses the original default map width
+     of 21. Do not override width/height in the PSP frontend: doing so
+     bypasses the core's hex-grid rectangular-stencil calculations. */
   options.loc_num = 4;
   options.conditions = 1;
   options.inequality = 4;
