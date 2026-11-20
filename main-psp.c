@@ -4,10 +4,10 @@
   Distributed under GPL-3.0-or-later; see LICENSE.
 ******************************************************************************/
 
+#define SDL_MAIN_HANDLED
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <string.h>
 #include "SDL.h"
 #include <pspkernel.h>
 #include <pspctrl.h>
@@ -30,7 +30,8 @@ PSP_HEAP_SIZE_KB(-1024);
 #define MOVE_REPEAT_MS 115
 
 static SDL_Window *window;
-static SDL_Surface *display;
+static SDL_Renderer *renderer;
+static SDL_Texture *frame_texture;
 static SDL_Surface *canvas;
 static SDL_Surface *tileset;
 static SDL_Surface *typeface;
@@ -44,9 +45,10 @@ static Uint32 last_move;
 
 static void present(void) {
   SDL_Rect viewport = {0, 28, PSP_W, 216};
-  SDL_FillRect(display, NULL, SDL_MapRGB(display->format, 0, 0, 0));
-  SDL_BlitScaled(canvas, NULL, display, &viewport);
-  SDL_UpdateWindowSurface(window);
+  SDL_UpdateTexture(frame_texture, NULL, canvas->pixels, canvas->pitch);
+  SDL_RenderClear(renderer);
+  SDL_RenderCopy(renderer, frame_texture, NULL, &viewport);
+  SDL_RenderPresent(renderer);
 }
 
 static int pressed(unsigned int buttons, unsigned int mask) {
@@ -190,14 +192,28 @@ int main(void) {
     return 1;
   }
 
-  display = SDL_GetWindowSurface(window);
-  canvas = SDL_CreateRGBSurface(0, LOGICAL_W, LOGICAL_H, 32,
-                                0x00FF0000, 0x0000FF00,
-                                0x000000FF, 0xFF000000);
-  if (!display || !canvas || !load_assets()) {
-    fprintf(stderr, "Unable to create display or load game assets: %s\n",
-            SDL_GetError());
+  renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+  canvas = SDL_CreateRGBSurfaceWithFormat(0, LOGICAL_W, LOGICAL_H, 32,
+                                          SDL_PIXELFORMAT_ABGR8888);
+  if (!renderer || !canvas) {
+    fprintf(stderr, "Unable to create renderer or canvas: %s\n", SDL_GetError());
     if (canvas) SDL_FreeSurface(canvas);
+    if (renderer) SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    sceKernelExitGame();
+    return 1;
+  }
+
+  frame_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888,
+                                    SDL_TEXTUREACCESS_STREAMING,
+                                    LOGICAL_W, LOGICAL_H);
+  if (!frame_texture || !load_assets()) {
+    fprintf(stderr, "Unable to create frame texture or load assets: %s\n",
+            SDL_GetError());
+    if (frame_texture) SDL_DestroyTexture(frame_texture);
+    SDL_FreeSurface(canvas);
+    SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
     sceKernelExitGame();
@@ -225,7 +241,9 @@ int main(void) {
   SDL_FreeSurface(tileset);
   SDL_FreeSurface(typeface);
   SDL_FreeSurface(uisurf);
+  SDL_DestroyTexture(frame_texture);
   SDL_FreeSurface(canvas);
+  SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
   SDL_Quit();
   sceKernelExitGame();
