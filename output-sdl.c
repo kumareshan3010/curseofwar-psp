@@ -69,7 +69,9 @@ int load_image(char *filename, SDL_Surface **image) {
   SDL_Surface *bmp;
   char candidate[600];
   int i;
-  SceUID last_error = 0;
+  SceUID relative_error = 0;
+  SceUID ms0_error = 0;
+  SceUID ef0_error = 0;
 
   /* Try the current directory first, then both standard PSP install roots. */
   for (i = 0; i < 3; ++i) {
@@ -79,12 +81,15 @@ int load_image(char *filename, SDL_Surface **image) {
       snprintf(candidate, sizeof(candidate), "%s%s", roots[i], filename);
     fd = sceIoOpen(candidate, PSP_O_RDONLY, 0777);
     if (fd >= 0) break;
-    last_error = fd;
+    if (i == 0) relative_error = fd;
+    else if (i == 1) ms0_error = fd;
+    else ef0_error = fd;
   }
 
   if (fd < 0) {
-    SDL_SetError("Cannot find %s; tried current dir, ms0:/PSP/GAME/CurseOfWar and ef0:/PSP/GAME/CurseOfWar (sceIoOpen=%08X)",
-                 filename, (unsigned int)last_error);
+    SDL_SetError("Open %s failed: relative=%08X ms0=%08X ef0=%08X",
+                 filename, (unsigned int)relative_error,
+                 (unsigned int)ms0_error, (unsigned int)ef0_error);
     return 1;
   }
 
