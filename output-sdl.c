@@ -53,24 +53,27 @@ Uint32 getpixel(SDL_Surface *surface, int x, int y) {
 }
 
 int load_image(char *filename, SDL_Surface **image) {
-  /* PSP/SDL2 port: load a BMP, make cyan transparent, convert to 32-bit ABGR */
-  SDL_Surface *temp, *conv;
-
-  temp = SDL_LoadBMP(filename);
-  if (temp == NULL) {
-    printf("Unable to load bitmap: %s\n", SDL_GetError());
+  /*
+   * Keep the BMP's native SDL pixel format on PSP. SDL_ConvertSurfaceFormat()
+   * is not reliably implemented by the PSP SDL2 renderer build and can fail
+   * with "Parameter 'src' is invalid". SDL_BlitSurface() performs the needed
+   * conversion when drawing into the ABGR8888 game canvas.
+   */
+  SDL_Surface *bmp = SDL_LoadBMP(filename);
+  if (bmp == NULL) {
     return 1;
   }
 
-  Uint32 colorkey = SDL_MapRGB(temp->format, 0, 255, 255);
-  if (SDL_SetColorKey(temp, SDL_TRUE, colorkey) != 0) {
-    fprintf(stderr, "Warning: colorkey will not be used, reason: %s\n", SDL_GetError());
+  /* Original artwork uses cyan as its transparent colour. */
+  {
+    Uint32 colorkey = SDL_MapRGB(bmp->format, 0, 255, 255);
+    if (SDL_SetColorKey(bmp, SDL_TRUE, colorkey) != 0) {
+      /* Continue without a colour key; keep the load failure diagnosable. */
+      SDL_ClearError();
+    }
   }
 
-  conv = SDL_ConvertSurfaceFormat(temp, SDL_PIXELFORMAT_ABGR8888, 0);
-  SDL_FreeSurface(temp);
-  if (conv == NULL) return 1;
-  *image = conv;
+  *image = bmp;
   return 0;
 }
 
