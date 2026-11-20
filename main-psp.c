@@ -96,7 +96,7 @@ static int fatal_error(const char *stage, const char *detail) {
 
 static void present(void) {
   SDL_Rect left_src = {0, 0, LEFT_TEXTURE_W, LOGICAL_H};
-  SDL_Rect right_src = {LEFT_TEXTURE_W, 0, RIGHT_TEXTURE_W, LOGICAL_H};
+  SDL_Rect right_src = {0, 0, RIGHT_TEXTURE_W, LOGICAL_H};
   SDL_Rect left_dst = {0, 28, 307, 216};
   SDL_Rect right_dst = {307, 28, 173, 216};
   const Uint8 *pixels = (const Uint8 *)canvas->pixels;
