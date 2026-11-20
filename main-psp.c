@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 #include "SDL.h"
 #include <pspkernel.h>
 #include <pspctrl.h>
@@ -50,7 +49,6 @@ static char asset_error[256];
 
 static void set_app_directory(int argc, char **argv) {
   char path[512];
-  char cwd[512];
   size_t length;
 
   /* PSP homebrew is not guaranteed to start with its EBOOT folder as cwd.
@@ -70,10 +68,7 @@ static void set_app_directory(int argc, char **argv) {
   /* Standard PPSSPP / PSP memory-stick install location. */
   if (sceIoChdir("ms0:/PSP/GAME/CurseOfWar") >= 0) return;
 
-  /* Keep the current directory if the loader already set it correctly. */
-  if (getcwd(cwd, sizeof(cwd)) != NULL) {
-    sceKernelPrintf("CurseOfWar cwd: %s\n", cwd);
-  }
+  /* Otherwise retain the loader-provided working directory. */
 }
 
 static int fatal_error(const char *stage, const char *detail) {
